@@ -1,164 +1,136 @@
 import numpy as np
-from collections import namedtuple
-from preprocess import build_mesh
-import quadrature as quad
-from box2D import assemble_stiffness, assemble_rhs
-from plotting import plot_solution, plot_mesh, plot_bc
-import sys
-
-np.set_printoptions(
-    threshold=sys.maxsize, linewidth=1000000000, precision=2, suppress=True
-)
-
-# Define properties
-Properties = namedtuple("Properties", ["w", "h", "K"])
-prop = Properties(w=1, h=1, K=1)
+from quadrature import Quadrule
+from shapefunctions import shapefunc
+from preprocess import std_element_defs  # Assuming this exists in Preprocess
 
 
-def build():
-    # Define quad rule
-    quad_rules = {
-        "quad": quad.gauss_legendre_1d(1),
-    }
+def assemble_stiffness(mesh, properties, quad_rules):
+    """Assemble the global stiffness matrix."""
+    num_dof_per_node = mesh.num_dof_per_node
+    totaldofs = num_dof_per_node * mesh.num_nodes
+    K = np.zeros((totaldofs, totaldofs))
 
-    # for 3 node quadtratic
+    # Loop over each element in the mesh
+    for element_type, element_connectivity in mesh.element_connectivity.items():
+        num_elements = element_connectivity.shape[0]
+        num_nodes_in_element = std_element_defs[element_type].num_nodes_in_element
+        total_num_dof = num_dof_per_node * num_nodes_in_element
+        LM = mesh.LM[element_type]
 
-    one_dimention_size = 3
-    one_dim_el = one_dimention_size - 1
-    amt_points = one_dimention_size**2
-    # make dictionary of elements
-    element_connectivity = []
-    for i in range(one_dim_el):
-        for j in range(one_dim_el):
-            element_connectivity.append(
-                np.array(
-                    [
-                        i * one_dimention_size + j,
-                        i * one_dimention_size + j + 1,
-                        i * one_dimention_size + j + one_dimention_size + 1,
-                        i * one_dimention_size + j + one_dimention_size,
-                    ],
-                    dtype=int,
-                )
+        for element in range(num_elements):
+            # TODO: make sure that point inputs are being gotten correctly
+            A = element_connectivity[element, :num_nodes_in_element]
+            x, y = mesh.x[A], mesh.y[A]
+            # print(A)
+            # print("x=", x)
+            # print("y=", y)
+
+            ke = element_stiffness(x, y, properties, element_type, quad_rules)
+
+            # Assemble element stiffness into the global stiffness matrix
+            for loop1 in range(total_num_dof):
+                i = LM[loop1, element]
+                for loop2 in range(total_num_dof):
+                    j = LM[loop2, element]
+                    K[i, j] += ke[loop1, loop2]
+
+    print(LM)
+    return K
+
+
+def element_stiffness(
+    x_pnts, y_pnts, properties, element_type: str, quad_rules: dict[str, Quadrule]
+):
+    """Compute the element stiffness matrix for a 1D bar."""
+    shapefoo = shapefunc(element_type)
+
+    running_sum = np.zeros((len(x_pnts), len(x_pnts)))
+    for ξi, wi in quad_rules[element_type].iterator:
+        for ξj, wj in quad_rules[element_type].iterator:
+            # Evaluate the shape function
+            _, Nξ, Nη = shapefoo(ξi, ξj)
+
+            # WARN: check that the shapes for all this is valid
+            shape_derivatives = np.array([Nξ, Nη]).T
+            # print("shape", shape_derivatives.T)
+            # print("Nξ", Nξ)
+            # print("Nη", Nη)
+            pnt_mat = np.array([x_pnts, y_pnts])
+            # print("pnt", pnt_mat)
+            # print("x", x_pnts)
+            # print("y", y_pnts)
+
+            jacob = pnt_mat @ shape_derivatives
+            detJ = np.linalg.det(jacob)
+
+            B = np.linalg.solve(jacob, shape_derivatives.T)
+
+            running_sum += properties.K * B.T @ B * detJ * wi * wj
+
+    return running_sum
+
+
+def assemble_rhs(mesh, external_forcing, quad_rules):
+    """Assemble the global right-hand-side force vector."""
+    ned = mesh.num_dof_per_node
+    totaldofs = ned * mesh.num_nodes
+    F = np.zeros(totaldofs)
+
+    # Loop over each element in the mesh
+    for element_type, element_connectivity in mesh.element_connectivity.items():
+        num_elements = element_connectivity.shape[0]
+        shape_funcs = shapefunc(element_type)
+        element_quad_rule = quad_rules[element_type]
+        num_nodes_in_element = std_element_defs[element_type].num_nodes_in_element
+        total_num_dof = ned * num_nodes_in_element
+        LM = mesh.LM[element_type]
+
+        for element in range(num_elements):
+            A = element_connectivity[element, :num_nodes_in_element]
+            point_inputs_x = mesh.x[A]
+            point_inputs_y = mesh.y[A]
+
+            fe = element_forcing(
+                point_inputs_x,
+                point_inputs_y,
+                shape_funcs,
+                element_quad_rule,
+                external_forcing,
             )
 
-    element_connectivity = {
-        "quad": np.array(element_connectivity),
-    }
+            # Assemble element force into the global force vector
+            for loop1 in range(total_num_dof):
+                i = LM[loop1, element]
+                F[i] += fe[loop1]
 
-    x = np.linspace(0, prop.w, one_dimention_size)
-    y = np.linspace(0, prop.h, one_dimention_size)
-    x, y = np.meshgrid(x, y)
-
-    # flag the essential boundary conditions
-    bc_fix_list = np.zeros((one_dimention_size, one_dimention_size), dtype=int)
-    # set boundy values to one since they are constrained
-    bc_fix_list[0, :] = 1
-    bc_fix_list[one_dimention_size - 1, :] = 1
-    bc_fix_list[:, 0] = 1
-    bc_fix_list[:, one_dimention_size - 1] = 1
-
-    bc_g_list = np.zeros_like(bc_fix_list, dtype=float)
-
-    # set boundy values to one since they are constrained
-    bc_g_list[0, :] = BoundyConditions.bottom
-    bc_g_list[one_dimention_size - 1, :] = BoundyConditions.top
-    bc_g_list[:, 0] = BoundyConditions.left
-    bc_g_list[:, one_dimention_size - 1] = BoundyConditions.right
-
-    # handle corners
-    bc_g_list[0, one_dimention_size - 1] = (
-        BoundyConditions.right + BoundyConditions.bottom
-    ) / 2
-
-    bc_g_list[0, 0] = (BoundyConditions.left + BoundyConditions.bottom) / 2
-
-    bc_g_list[one_dimention_size - 1, one_dimention_size - 1] = (
-        BoundyConditions.right + BoundyConditions.top
-    ) / 2
-
-    bc_g_list[one_dimention_size - 1, 0] = (
-        BoundyConditions.left + BoundyConditions.top
-    ) / 2
-
-    # reshape to be 1=d
-    bc_fix_list = bc_fix_list.reshape((1, amt_points))
-    bc_g_list = bc_g_list.reshape((1, amt_points))
-    return (
-        x,
-        y,
-        element_connectivity,
-        bc_fix_list,
-        bc_g_list,
-        quad_rules,
-        one_dimention_size,
-    )
+    return F
 
 
-class BoundyConditions:
-    top = 100
-    bottom = 0
-    left = 75
-    right = 50
+def element_forcing(xe, ye, N, element_quad_rule: Quadrule, external_forcing):
+    """Compute the element force vector."""
+    ned = 1
+    nen = len(xe)
+    nee = ned * nen
+    fe = np.zeros(nee)
 
+    # Integration loop
+    for ξi, wi in element_quad_rule.iterator:
+        for ξj, wj in element_quad_rule.iterator:
+            # Evaluate the shape function
+            Ne, Nξ, Nη = N(ξi, ξj)
 
-x, y, element_connectivity, bc_fix_list, bc_g_list, quad_rules, one_dimention_size = (
-    build()
-)
+            # Evaluate the external loading at x(ξ)
+            x = np.dot(Ne, xe)
+            y = np.dot(Ne, ye)
+            fext = external_forcing(x, y)
 
-plt = plot_mesh(x, y, element_connectivity["quad"])
-# plt.savefig("mesh.svg")
+            shape_derivatives = np.array([Nξ, Nη]).reshape(4, -1)
+            diff_arr = np.array([xe, ye])
 
-plt = plot_bc(x, y, bc_g_list)
-# plt.savefig("boundrys.svg")
+            jacob = diff_arr @ shape_derivatives
+            detJ = np.linalg.det(jacob)
 
-mesh = build_mesh(
-    x.reshape((-1,)),
-    y.reshape((-1,)),
-    [],
-    element_connectivity,
-    1,
-    bc_fix_list,
-    bc_g_list,
-)
+            # Integrate
+            fe += Ne * fext * detJ * wi * wj
 
-
-def f(x, y):
-    return 0
-
-
-# %% Assemble the global stiffness matrix
-K = assemble_stiffness(mesh, prop, quad_rules)
-
-# %% Assemble the global right-hand-side force vector
-F = assemble_rhs(mesh, f, quad_rules)
-
-# load the known solutions into the solution matrix
-solution = np.zeros(mesh.num_nodes * mesh.num_dof_per_node)
-idx = np.where(bc_fix_list == 1)
-print("idx", idx)
-solution[mesh.ID[idx]] = bc_g_list[idx]
-
-# %% Solve
-r1 = mesh.free_range
-r2 = mesh.freefix_range
-print(np.ix_(r2, r2))
-solution[r1] = np.linalg.solve(
-    K[np.ix_(r1, r1)], F[r1] - K[np.ix_(r1, r2)] @ solution[r2]
-)
-
-
-def convert_sol_to_two_d(solution):
-    # have to unpack to solution into the free range
-    twod_sol = bc_g_list.reshape(one_dimention_size, one_dimention_size)
-    free_range_vals = iter(solution[r1])
-    for i in range(1, one_dimention_size - 1):
-        for j in range(1, one_dimention_size - 1):
-            twod_sol[i, j] = next(free_range_vals)
-    return twod_sol
-
-
-unpacked_solution = convert_sol_to_two_d(solution)
-
-plt = plot_solution(unpacked_solution, x, y)
-plt.savefig("contour.svg")
+    return fe
