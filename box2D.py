@@ -1,0 +1,136 @@
+import numpy as np
+from quadrature import Quadrule
+from shapefunctions import shapefunc
+from preprocess import std_element_defs  # Assuming this exists in Preprocess
+
+
+def assemble_stiffness(mesh, properties, quad_rules):
+    """Assemble the global stiffness matrix."""
+    num_dof_per_node = mesh.num_dof_per_node
+    totaldofs = num_dof_per_node * mesh.num_nodes
+    K = np.zeros((totaldofs, totaldofs))
+
+    # Loop over each element in the mesh
+    for element_type, element_connectivity in mesh.element_connectivity.items():
+        num_elements = element_connectivity.shape[0]
+        num_nodes_in_element = std_element_defs[element_type].num_nodes_in_element
+        total_num_dof = num_dof_per_node * num_nodes_in_element
+        LM = mesh.LM[element_type]
+
+        for element in range(num_elements):
+            # TODO: make sure that point inputs are being gotten correctly
+            A = element_connectivity[element, :num_nodes_in_element]
+            x, y = mesh.x[A], mesh.y[A]
+            # print(A)
+            # print("x=", x)
+            # print("y=", y)
+
+            ke = element_stiffness(x, y, properties, element_type, quad_rules)
+
+            # Assemble element stiffness into the global stiffness matrix
+            for loop1 in range(total_num_dof):
+                i = LM[loop1, element]
+                for loop2 in range(total_num_dof):
+                    j = LM[loop2, element]
+                    K[i, j] += ke[loop1, loop2]
+
+    print(LM)
+    return K
+
+
+def element_stiffness(
+    x_pnts, y_pnts, properties, element_type: str, quad_rules: dict[str, Quadrule]
+):
+    """Compute the element stiffness matrix for a 1D bar."""
+    shapefoo = shapefunc(element_type)
+
+    running_sum = np.zeros((len(x_pnts), len(x_pnts)))
+    for ξi, wi in quad_rules[element_type].iterator:
+        for ξj, wj in quad_rules[element_type].iterator:
+            # Evaluate the shape function
+            _, Nξ, Nη = shapefoo(ξi, ξj)
+
+            # WARN: check that the shapes for all this is valid
+            shape_derivatives = np.array([Nξ, Nη]).T
+            # print("shape", shape_derivatives.T)
+            # print("Nξ", Nξ)
+            # print("Nη", Nη)
+            pnt_mat = np.array([x_pnts, y_pnts])
+            # print("pnt", pnt_mat)
+            # print("x", x_pnts)
+            # print("y", y_pnts)
+
+            jacob = pnt_mat @ shape_derivatives
+            detJ = np.linalg.det(jacob)
+
+            B = np.linalg.solve(jacob, shape_derivatives.T)
+
+            running_sum += properties.K * B.T @ B * detJ * wi * wj
+
+    return running_sum
+
+
+def assemble_rhs(mesh, external_forcing, quad_rules):
+    """Assemble the global right-hand-side force vector."""
+    ned = mesh.num_dof_per_node
+    totaldofs = ned * mesh.num_nodes
+    F = np.zeros(totaldofs)
+
+    # Loop over each element in the mesh
+    for element_type, element_connectivity in mesh.element_connectivity.items():
+        num_elements = element_connectivity.shape[0]
+        shape_funcs = shapefunc(element_type)
+        element_quad_rule = quad_rules[element_type]
+        num_nodes_in_element = std_element_defs[element_type].num_nodes_in_element
+        total_num_dof = ned * num_nodes_in_element
+        LM = mesh.LM[element_type]
+
+        for element in range(num_elements):
+            A = element_connectivity[element, :num_nodes_in_element]
+            point_inputs_x = mesh.x[A]
+            point_inputs_y = mesh.y[A]
+
+            fe = element_forcing(
+                point_inputs_x,
+                point_inputs_y,
+                shape_funcs,
+                element_quad_rule,
+                external_forcing,
+            )
+
+            # Assemble element force into the global force vector
+            for loop1 in range(total_num_dof):
+                i = LM[loop1, element]
+                F[i] += fe[loop1]
+
+    return F
+
+
+def element_forcing(xe, ye, N, element_quad_rule: Quadrule, external_forcing):
+    """Compute the element force vector."""
+    ned = 1
+    nen = len(xe)
+    nee = ned * nen
+    fe = np.zeros(nee)
+
+    # Integration loop
+    for ξi, wi in element_quad_rule.iterator:
+        for ξj, wj in element_quad_rule.iterator:
+            # Evaluate the shape function
+            Ne, Nξ, Nη = N(ξi, ξj)
+
+            # Evaluate the external loading at x(ξ)
+            x = np.dot(Ne, xe)
+            y = np.dot(Ne, ye)
+            fext = external_forcing(x, y)
+
+            shape_derivatives = np.array([Nξ, Nη]).reshape(4, -1)
+            diff_arr = np.array([xe, ye])
+
+            jacob = diff_arr @ shape_derivatives
+            detJ = np.linalg.det(jacob)
+
+            # Integrate
+            fe += Ne * fext * detJ * wi * wj
+
+    return fe
