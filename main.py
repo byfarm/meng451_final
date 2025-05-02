@@ -24,7 +24,7 @@ def build():
 
     # for 3 node quadtratic
 
-    one_dimention_size = 7
+    one_dimention_size = 10
     one_dim_el = one_dimention_size - 1
     layer_point_size = one_dimention_size**2
     amt_points = one_dimention_size**3
@@ -52,7 +52,7 @@ def build():
     # make node numbers 1-n have the conv boundry
     conv_boundry = np.array(
         [
-            [i for i in range(one_dimention_size-1)],
+            [i for i in range(one_dimention_size - 1)],
             [i for i in range(1, one_dimention_size)],
         ],
         dtype=int,
@@ -142,6 +142,8 @@ def build():
     # reshape to be 1=d
     bc_fix_list = bc_fix_list.reshape((1, amt_points))
     bc_g_list = bc_g_list.reshape((1, amt_points))
+    # combines = np.vstack((bc_fix_list, bc_g_list)).T
+    # print(combines)
     return (
         x,
         y,
@@ -175,10 +177,10 @@ class BoundyConditions:
 ) = build()
 
 plt = plot_mesh(x, y, z, element_connectivity["hexahedron"])
-plt.savefig("img/mesh_bc.png")
+plt.savefig("img/mesh_all.png")
 
 plt = plot_bc(x, y, z, bc_g_list)
-plt.savefig("img/boundrys_bc.png")
+plt.savefig("img/boundrys_all.png")
 
 mesh = build_mesh(
     x.reshape((-1,)),
@@ -214,20 +216,16 @@ solution[r1] = np.linalg.solve(
 )
 
 
-def convert_sol_to_two_d(solution):
-    # have to unpack to solution into the free range
-    twod_sol = bc_g_list.reshape(
-        one_dimention_size, one_dimention_size, one_dimention_size
-    )
-    free_range_vals = iter(solution[r1])
-    for i in range(1, one_dimention_size - 1):
-        for j in range(1, one_dimention_size - 1):
-            for k in range(1, one_dimention_size - 1):
-                twod_sol[i, j, k] = next(free_range_vals)
+def unpack_solution(solution):
+    bc_fix_twod = bc_fix_list.reshape(one_dimention_size, one_dimention_size, one_dimention_size)
+    bc_g_twod = bc_g_list.reshape(one_dimention_size, one_dimention_size, one_dimention_size)
+    twod_sol = bc_g_twod.copy()
+    free_spots_idx = np.where(bc_fix_twod == 0)
+    twod_sol[free_spots_idx] = solution[r1]
     return twod_sol
 
 
-unpacked_solution = convert_sol_to_two_d(solution)
+unpacked_solution = unpack_solution(solution)
 
 plt = plot_solution(unpacked_solution, x, y)
-plt.savefig("img/contour_bc.png")
+plt.savefig("img/contour_all.png")

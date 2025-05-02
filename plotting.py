@@ -29,6 +29,23 @@ def plot_mesh(x, y, z, connectivity_matrix):
     fig = plt.figure()
     ax = fig.add_subplot(projection="3d")
     ax.scatter(x, y, z)
+
+    # el_conn = connectivity_matrix["quad"]
+    # for row in range(el_conn.shape[0]):
+    #     idx = el_conn[row, :]
+    #     xe, ye = list(x[idx]), list(y[idx])
+    #     xe.append(xe[0])
+    #     ye.append(ye[0])
+    #     ax.plot(xe, ye)
+    #
+    # el_conn = connectivity_matrix["line"]
+    # for row in range(el_conn.shape[0]):
+    #     idx = el_conn[row, :]
+    #     xe, ye = list(x[idx]), list(y[idx])
+    #     # xe.append(xe[0])
+    #     # ye.append(ye[0])
+    #     ax.plot(xe, ye, color="r")
+
     # x = x.reshape((-1,))
     # y = y.reshape((-1,))
     # z = z.reshape((-1,))

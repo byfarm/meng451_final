@@ -126,6 +126,7 @@ def assemble_rhs(mesh, external_forcing, quad_rules):
     ned = mesh.num_dof_per_node
     totaldofs = ned * mesh.num_nodes
     F = np.zeros(totaldofs)
+    return F
 
     # Loop over each element in the mesh
     for element_type, element_connectivity in mesh.element_connectivity.items():
