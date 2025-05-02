@@ -163,11 +163,11 @@ class BoundyConditions:
     one_dimention_size,
 ) = build()
 
-# plt = plot_mesh(x, y, z, element_connectivity["hexahedron"])
-# plt.savefig("mesh.png")
+plt = plot_mesh(x, y, z, element_connectivity["hexahedron"])
+plt.savefig("img/mesh_bc.png")
 
 plt = plot_bc(x, y, z, bc_g_list)
-plt.savefig("boundrys.png")
+plt.savefig("img/boundrys_bc.png")
 
 mesh = build_mesh(
     x.reshape((-1,)),
@@ -219,4 +219,4 @@ def convert_sol_to_two_d(solution):
 unpacked_solution = convert_sol_to_two_d(solution)
 
 plt = plot_solution(unpacked_solution, x, y)
-plt.savefig("contour.png")
+plt.savefig("img/contour_bc.png")
