@@ -2,7 +2,7 @@ import numpy as np
 from collections import namedtuple
 from preprocess import build_mesh
 import quadrature as quad
-from cube import assemble_stiffness, assemble_rhs
+from matrixis import assemble_stiffness, assemble_rhs
 from plotting import plot_solution, plot_mesh, plot_bc
 import sys
 
@@ -11,8 +11,8 @@ np.set_printoptions(
 )
 
 # Define properties
-Properties = namedtuple("Properties", ["w", "h", "d", "K"])
-prop = Properties(w=1, h=1, d=1, K=1)
+Properties = namedtuple("Properties", ["w", "h", "d", "K", "H"])
+prop = Properties(w=1, h=1, d=1, K=1, H=1)
 
 
 def build():
@@ -23,10 +23,10 @@ def build():
 
     # for 3 node quadtratic
 
-    one_dimention_size = 5
+    one_dimention_size = 3
     one_dim_el = one_dimention_size - 1
-    amt_points = one_dimention_size**3
     layer_point_size = one_dimention_size**2
+    amt_points = one_dimention_size**3
     # make dictionary of elements
     element_connectivity = []
     for i in range(one_dim_el):

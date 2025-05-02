@@ -111,8 +111,6 @@ def build_LM(identity_matrix, IEN):
             for a in range(num_nodes_in_element):
                 for i in range(ned):
                     p = a + num_nodes_in_element * (i)
-                    # print(ien[e, a])
-                    # print(identity_matrix)
                     lm[p, e] = identity_matrix[i, ien[e, a]]
 
         LM[element_type] = lm
