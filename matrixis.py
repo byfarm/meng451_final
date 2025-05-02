@@ -1,10 +1,10 @@
 import numpy as np
 from quadrature import Quadrule
 from shapefunctions import shapefunc
-from preprocess import std_element_defs  # Assuming this exists in Preprocess
+from preprocess import Mesh, std_element_defs  # Assuming this exists in Preprocess
 
 
-def assemble_stiffness(mesh, properties, quad_rules):
+def assemble_stiffness(mesh: Mesh, properties, quad_rules):
     """Assemble the global stiffness matrix."""
     num_dof_per_node = mesh.num_dof_per_node
     totaldofs = num_dof_per_node * mesh.num_nodes
@@ -15,22 +15,85 @@ def assemble_stiffness(mesh, properties, quad_rules):
         num_elements = element_connectivity.shape[0]
         num_nodes_in_element = std_element_defs[element_type].num_nodes_in_element
         total_num_dof = num_dof_per_node * num_nodes_in_element
-        LM = mesh.LM[element_type]
+        location_matrix = mesh.LM[element_type]
 
         for element in range(num_elements):
             A = element_connectivity[element, :num_nodes_in_element]
             x, y = mesh.x[A], mesh.y[A]
 
-            ke = element_stiffness(x, y, properties, element_type, quad_rules)
-
-            # Assemble element stiffness into the global stiffness matrix
-            for loop1 in range(total_num_dof):
-                i = LM[loop1, element]
-                for loop2 in range(total_num_dof):
-                    j = LM[loop2, element]
-                    K[i, j] += ke[loop1, loop2]
+            match element_type:
+                case "line":
+                    conv_stiffness(
+                        mesh.ID,
+                        A,
+                        K,
+                        x,
+                        y,
+                        properties,
+                        element_type,
+                        quad_rules,
+                    )
+                case _:
+                    regular_stiffness(
+                        location_matrix,
+                        x,
+                        y,
+                        properties,
+                        element_type,
+                        quad_rules,
+                        total_num_dof,
+                        element,
+                        K,
+                    )
 
     return K
+
+
+def regular_stiffness(
+    LM,
+    x,
+    y,
+    properties,
+    element_type,
+    quad_rules,
+    total_num_dof,
+    element,
+    K,
+) -> None:
+    ke = element_stiffness(x, y, properties, element_type, quad_rules)
+
+    # Assemble element stiffness into the global stiffness matrix
+    for loop1 in range(total_num_dof):
+        i = LM[loop1, element]
+        for loop2 in range(total_num_dof):
+            j = LM[loop2, element]
+            K[i, j] += ke[loop1, loop2]
+
+
+def conv_stiffness(identity_matrix, A, K, x, y, properties, element_type, quad_rules):
+    ke = element_conv_stiffness(x, y, properties, quad_rules, element_type)
+    global_eqation = identity_matrix[0, A]
+
+    for i, vali in enumerate(global_eqation):
+        for j, valj in enumerate(global_eqation):
+            K[vali, valj] += ke[i, j]
+
+
+def element_conv_stiffness(x_pnts, y_pnts, properties, quad_rules, element_type):
+    shapefoo = shapefunc(element_type)
+
+    running_sum = np.zeros((len(x_pnts), len(x_pnts)))
+    for ξi, wi in quad_rules[element_type].iterator:
+        # Evaluate the shape function
+        Ne, Nξ = shapefoo(ξi)
+
+        dx_dξ = np.dot(x_pnts, Nξ)
+        dy_dξ = np.dot(y_pnts, Nξ)
+        detJ = np.sqrt(np.square(dx_dξ) + np.square(dy_dξ))
+
+        running_sum += properties.H * Ne.T @ Ne * detJ * wi
+
+    return running_sum
 
 
 def element_stiffness(

@@ -19,11 +19,12 @@ def build():
     # Define quad rule
     quad_rules = {
         "hexahedron": quad.gauss_legendre_1d(2),
+        "quad": quad.gauss_legendre_1d(3),
     }
 
     # for 3 node quadtratic
 
-    one_dimention_size = 3
+    one_dimention_size = 7
     one_dim_el = one_dimention_size - 1
     layer_point_size = one_dimention_size**2
     amt_points = one_dimention_size**3
@@ -48,8 +49,18 @@ def build():
                     )
                 )  # fmt: skip
 
+    # make node numbers 1-n have the conv boundry
+    conv_boundry = np.array(
+        [
+            [i for i in range(one_dimention_size-1)],
+            [i for i in range(1, one_dimention_size)],
+        ],
+        dtype=int,
+    )
+
     element_connectivity = {
         "hexahedron": np.array(element_connectivity),
+        "quad": conv_boundry.reshape(-1, 4),
     }
 
     x = np.linspace(0, prop.w, one_dimention_size)
@@ -180,7 +191,7 @@ mesh = build_mesh(
 )
 
 
-def f(x, y, z):
+def f(x: float, y: float) -> float:
     return 0
 
 
