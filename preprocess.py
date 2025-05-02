@@ -49,6 +49,7 @@ std_element_defs = {
     "curve": ElementDef("3 node quadratic", 3, 1, 1),
     "triangle": ElementDef("Linear Triangle", 3, 2, 2),
     "quad": ElementDef("4 node quadrilateral", 4, 2, 3),
+    "hexahedron": ElementDef("8 node hexahedron", 8, 3, 3),
 }
 
 
@@ -97,7 +98,7 @@ def build_identity_matrix(num_nodes, g_list, dof_per_node, fix_list):
 
 
 def build_LM(identity_matrix, IEN):
-    # lm you are trying to match each degree of freedom with the element 
+    # lm you are trying to match each degree of freedom with the element
     ned = identity_matrix.shape[0]
     LM = {}
 

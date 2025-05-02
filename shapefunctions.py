@@ -1,3 +1,4 @@
+from typing import Callable
 import numpy as np
 
 
@@ -21,8 +22,9 @@ def curve(ξ):
     return NN, Nξ
 
 
-def triangle(r, s):
+def triangle(i):
     """Shape functions for a 3-node triangle."""
+    r, s = i
     NN = np.array([(1 / 2) * (-r - s), (1 / 2) * (1 + r), (1 / 2) * (1 + s)])
 
     # Derivatives
@@ -32,8 +34,9 @@ def triangle(r, s):
     return NN, Nr, Ns
 
 
-def quad(r, s):
+def quad(i):
     """Shape functions for a 4-node quadrilateral."""
+    r, s = i
     NN = np.array(
         [
             (1 / 4) * (-1 + r) * (-1 + s),
@@ -55,16 +58,74 @@ def quad(r, s):
     return NN, Nr, Ns
 
 
-def shapefunc(el_type):
+def hexahedron(i: tuple[float, float, float]):
+    ξ, η, ζ = i
+
+    # Shape functions N_1 to N_8
+    NN = np.array(
+        [
+            1 / 8 * (1 - ξ) * (1 - η) * (1 - ζ),
+            1 / 8 * (1 + ξ) * (1 - η) * (1 - ζ),
+            1 / 8 * (1 + ξ) * (1 + η) * (1 - ζ),
+            1 / 8 * (1 - ξ) * (1 + η) * (1 - ζ),
+            1 / 8 * (1 - ξ) * (1 - η) * (1 + ζ),
+            1 / 8 * (1 + ξ) * (1 - η) * (1 + ζ),
+            1 / 8 * (1 + ξ) * (1 + η) * (1 + ζ),
+            1 / 8 * (1 - ξ) * (1 + η) * (1 + ζ),
+        ]
+    )
+
+    Nξ = np.array(
+        [
+            -1 / 8 * (1 - η) * (1 - ζ),
+            1 / 8 * (1 - η) * (1 - ζ),
+            1 / 8 * (1 + η) * (1 - ζ),
+            -1 / 8 * (1 + η) * (1 - ζ),
+            -1 / 8 * (1 - η) * (1 + ζ),
+            1 / 8 * (1 - η) * (1 + ζ),
+            1 / 8 * (1 + η) * (1 + ζ),
+            -1 / 8 * (1 + η) * (1 + ζ),
+        ]
+    )
+
+    Nη = np.array(
+        [
+            -1 / 8 * (1 - ξ) * (1 - ζ),
+            -1 / 8 * (1 + ξ) * (1 - ζ),
+            1 / 8 * (1 + ξ) * (1 - ζ),
+            1 / 8 * (1 - ξ) * (1 - ζ),
+            -1 / 8 * (1 - ξ) * (1 + ζ),
+            -1 / 8 * (1 + ξ) * (1 + ζ),
+            1 / 8 * (1 + ξ) * (1 + ζ),
+            1 / 8 * (1 - ξ) * (1 + ζ),
+        ]
+    )
+
+    Nζ = np.array(
+        [
+            -1 / 8 * (1 - ξ) * (1 - η),
+            -1 / 8 * (1 + ξ) * (1 - η),
+            -1 / 8 * (1 + ξ) * (1 + η),
+            -1 / 8 * (1 - ξ) * (1 + η),
+            1 / 8 * (1 - ξ) * (1 - η),
+            1 / 8 * (1 + ξ) * (1 - η),
+            1 / 8 * (1 + ξ) * (1 + η),
+            1 / 8 * (1 - ξ) * (1 + η),
+        ]
+    )
+
+    return NN, Nξ, Nη, Nζ
+
+
+ELEMENT_TYPES = {
+    "line": line,
+    "triangle": triangle,
+    "quad": quad,
+    "curve": curve,
+    "hexahedron": hexahedron,
+}
+
+
+def get_shape_func(el_type: str) -> Callable:
     """Returns the appropriate shape function based on element type."""
-    match el_type:
-        case "line":
-            return line
-        case "triangle":
-            return triangle
-        case "quad":
-            return quad
-        case "curve":
-            return curve
-        case _:
-            raise ValueError("Element type not found")
+    return ELEMENT_TYPES[el_type]
