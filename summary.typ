@@ -19,3 +19,9 @@
 
 = Summary
 
+The FEM program was first expanded to three dimentions to handle a convection problem with exclusively essential boundry conditions. The program was then expanded to handle a convection boundry condition in one dimention. Finally, both parts were combined and a 3D problem with a 2D convection boundry condition was solved.
+
+= 3-D Figures 
+#figure(image("img/mesh_bc.png"), caption: [3-D Mesh])
+= Convection Figures
+#figure(image("img/boundrys_2d.png"))
