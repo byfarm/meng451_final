@@ -105,8 +105,8 @@ def element_conv_stiffness(
             dz_dη = np.dot(z_pnts, Nη)
 
             dr_dξ = np.vstack((dx_dξ, dy_dξ, dz_dξ))
-            dr_dη = np.hstack((dx_dη, dy_dη, dz_dη)).reshape(1, -1)
-            detJ = np.linalg.det(dr_dξ @ dr_dη)
+            dr_dη = np.vstack((dx_dη, dy_dη, dz_dη))
+            detJ = np.linalg.norm(np.cross(dr_dξ, dr_dη, axis=0), axis=0)
 
             running_sum += properties.H * Ne.T @ Ne * detJ * wi * wj
 

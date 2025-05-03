@@ -12,10 +12,18 @@ np.set_printoptions(
 
 # Define properties
 Properties = namedtuple("Properties", ["w", "h", "d", "K", "H"])
-prop = Properties(w=1, h=1, d=1, K=1, H=1)
 
 
-def build():
+class BoundyConditions:
+    back = 100
+    front = 0
+    left = 20
+    right = 20
+    bottom = 20
+    top = 20
+
+
+def build(prop, dim_size):
     # Define quad rule
     quad_rules = {
         "hexahedron": quad.gauss_legendre_1d(2),
@@ -24,7 +32,7 @@ def build():
 
     # for 3 node quadtratic
 
-    one_dimention_size = 5
+    one_dimention_size = dim_size
     one_dim_el = one_dimention_size - 1
     layer_point_size = one_dimention_size**2
     amt_points = one_dimention_size**3
@@ -80,28 +88,28 @@ def build():
         (one_dimention_size, one_dimention_size, one_dimention_size), dtype=int
     )
     # set boundy values to one since they are constrained
-    bc_fix_list[0, :, :] = 1
     bc_fix_list[one_dimention_size - 1, :, :] = 1
     bc_fix_list[:, 0, :] = 1
     bc_fix_list[:, one_dimention_size - 1, :] = 1
     bc_fix_list[:, :, 0] = 1
     bc_fix_list[:, :, one_dimention_size - 1] = 1
+    bc_fix_list[0, :, :] = 0  # front
 
     bc_g_list = np.zeros_like(bc_fix_list, dtype=float)
 
     # set boundy values to one since they are constrained
-    bc_g_list[0, :] = BoundyConditions.front
-    bc_g_list[one_dimention_size - 1, :] = BoundyConditions.back
-    bc_g_list[:, 0] = BoundyConditions.left
-    bc_g_list[:, one_dimention_size - 1] = BoundyConditions.right
+    bc_g_list[one_dimention_size - 1, :, :] = BoundyConditions.back
+    bc_g_list[:, 0, :] = BoundyConditions.left
+    bc_g_list[:, one_dimention_size - 1, :] = BoundyConditions.right
     bc_g_list[:, :, 0] = BoundyConditions.bottom
     bc_g_list[:, :, one_dimention_size - 1] = BoundyConditions.top
+    # bc_g_list[0, :, :] = BoundyConditions.front
 
     # handle edges
-    bc_g_list[0, :, -1] = (BoundyConditions.front + BoundyConditions.top) / 2
-    bc_g_list[0, -1, :] = (BoundyConditions.bottom + BoundyConditions.front) / 2
-    bc_g_list[0, :, 0] = (BoundyConditions.front + BoundyConditions.bottom) / 2
-    bc_g_list[0, 0, :] = (BoundyConditions.front + BoundyConditions.left) / 2
+    # bc_g_list[0, :, -1] = (BoundyConditions.front + BoundyConditions.top) / 2
+    # bc_g_list[0, -1, :] = (BoundyConditions.bottom + BoundyConditions.front) / 2
+    # bc_g_list[0, :, 0] = (BoundyConditions.front + BoundyConditions.bottom) / 2
+    # bc_g_list[0, 0, :] = (BoundyConditions.front + BoundyConditions.left) / 2
     bc_g_list[-1, :, -1] = (BoundyConditions.top + BoundyConditions.back) / 2
     bc_g_list[-1, :, 0] = (BoundyConditions.bottom + BoundyConditions.back) / 2
     bc_g_list[-1, -1, :] = (BoundyConditions.right + BoundyConditions.back) / 2
@@ -163,81 +171,77 @@ def build():
     )
 
 
-class BoundyConditions:
-    back = 100
-    front = 50
-    left = 75
-    right = 25
-    bottom = 0
-    top = 0
+def main(num_dims):
+    prop = Properties(w=1, h=1, d=1, K=273, H=100)
 
+    (
+        x,
+        y,
+        z,
+        element_connectivity,
+        bc_fix_list,
+        bc_g_list,
+        quad_rules,
+        one_dimention_size,
+    ) = build(prop, num_dims)
 
-(
-    x,
-    y,
-    z,
-    element_connectivity,
-    bc_fix_list,
-    bc_g_list,
-    quad_rules,
-    one_dimention_size,
-) = build()
-
-
-mesh = build_mesh(
-    x.reshape((-1,)),
-    y.reshape((-1,)),
-    z.reshape((-1,)),
-    element_connectivity,
-    1,
-    bc_fix_list,
-    bc_g_list,
-)
-
-plt = plot_mesh(x.reshape(-1), y.reshape(-1), z.reshape(-1), element_connectivity)
-plt.savefig("img/mesh_all.png")
-
-plt = plot_bc(x, y, z, bc_g_list)
-plt.savefig("img/boundrys_all.png")
-
-
-def f(x: float, y: float) -> float:
-    return 0
-
-
-# %% Assemble the global stiffness matrix
-K = assemble_stiffness(mesh, prop, quad_rules)
-
-# %% Assemble the global right-hand-side force vector
-F = assemble_rhs(mesh, f, quad_rules)
-
-# load the known solutions into the solution matrix
-solution = np.zeros(mesh.num_nodes * mesh.num_dof_per_node)
-idx = np.where(bc_fix_list == 1)
-solution[mesh.ID[idx]] = bc_g_list[idx]
-
-# %% Solve
-r1 = mesh.free_range
-r2 = mesh.freefix_range
-solution[r1] = np.linalg.solve(
-    K[np.ix_(r1, r1)], F[r1] - K[np.ix_(r1, r2)] @ solution[r2]
-)
-
-
-def unpack_solution(solution):
-    bc_fix_twod = bc_fix_list.reshape(
-        one_dimention_size, one_dimention_size, one_dimention_size
+    mesh = build_mesh(
+        x.reshape((-1,)),
+        y.reshape((-1,)),
+        z.reshape((-1,)),
+        element_connectivity,
+        1,
+        bc_fix_list,
+        bc_g_list,
     )
-    bc_g_twod = bc_g_list.reshape(
-        one_dimention_size, one_dimention_size, one_dimention_size
+
+    # plt = plot_mesh(x.reshape(-1), y.reshape(-1), z.reshape(-1), element_connectivity)
+    # plt.savefig("img/mesh_all.png")
+
+    # plt = plot_bc(
+    #     mesh
+    # )
+    # plt.savefig("img/boundrys_all.png")
+
+    def f(x: float, y: float) -> float:
+        return 0
+
+    # %% Assemble the global stiffness matrix
+    K = assemble_stiffness(mesh, prop, quad_rules)
+
+    # %% Assemble the global right-hand-side force vector
+    F = assemble_rhs(mesh, f, quad_rules)
+
+    # load the known solutions into the solution matrix
+    solution = np.zeros(mesh.num_nodes * mesh.num_dof_per_node)
+    idx = np.where(bc_fix_list == 1)
+    solution[mesh.ID[idx]] = bc_g_list[idx]
+
+    # %% Solve
+    r1 = mesh.free_range
+    r2 = mesh.freefix_range
+    solution[r1] = np.linalg.solve(
+        K[np.ix_(r1, r1)], F[r1] - K[np.ix_(r1, r2)] @ solution[r2]
     )
-    twod_sol = bc_g_twod.copy()
-    free_spots_idx = np.where(bc_fix_twod == 0)
-    twod_sol[free_spots_idx] = solution[r1]
-    return twod_sol
+
+    def unpack_solution(solution):
+        bc_fix_twod = bc_fix_list.reshape(
+            one_dimention_size, one_dimention_size, one_dimention_size
+        )
+        bc_g_twod = bc_g_list.reshape(
+            one_dimention_size, one_dimention_size, one_dimention_size
+        )
+        twod_sol = bc_g_twod.copy()
+        free_spots_idx = np.where(bc_fix_twod == 0)
+        twod_sol[free_spots_idx] = solution[r1]
+        return twod_sol
+
+    unpacked_solution = unpack_solution(solution)
+
+    plt = plot_solution(unpacked_solution, x, y)
+    plt.savefig(f"img/contour_all_size_{num_dims}.png")
 
 
-unpacked_solution = unpack_solution(solution)
-
-plt = plot_solution(unpacked_solution, x, y)
-plt.savefig("img/contour_all.png")
+if __name__ == "__main__":
+    num_dims = sys.argv[1]
+    main(int(num_dims))
