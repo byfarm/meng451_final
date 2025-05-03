@@ -28,7 +28,7 @@ def plot_solution(sol, x, y):
     global_min = np.min(sol)
     global_max = np.max(sol)
 
-    fig, axs = plt.subplots(1, sol.shape[-1], figsize=(12, 4))
+    fig, axs = plt.subplots(1, ceil(sol.shape[-1]/2), figsize=(12, 4))
 
     if sol.shape[-1] == 1:
         axs = [axs]
@@ -51,8 +51,8 @@ def plot_solution(sol, x, y):
         # Optional: Add scatter points for grid points
         ax.scatter(x[:, :, i], y[:, :, i], color="white", s=0.1)
 
-        if i == sol.shape[-1] - 1:
-             fig.colorbar(pos, ax=axs, label="Temperature")
+        # if i == ceil(sol.shape[-1]/2) - 1:
+        #      fig.colorbar(pos, ax=axs, label="Temperature")
         if i == 0:
             ax.set_ylabel('Y-axis')
         else:

@@ -198,9 +198,7 @@ def main(num_dims):
     # plt = plot_mesh(x.reshape(-1), y.reshape(-1), z.reshape(-1), element_connectivity)
     # plt.savefig("img/mesh_all.png")
 
-    # plt = plot_bc(
-    #     mesh
-    # )
+    # plt = plot_bc(mesh)
     # plt.savefig("img/boundrys_all.png")
 
     def f(x: float, y: float) -> float:

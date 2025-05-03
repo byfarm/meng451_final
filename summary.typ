@@ -22,6 +22,11 @@
 The FEM program was first expanded to three dimentions to handle a convection problem with exclusively essential boundry conditions. The program was then expanded to handle a convection boundry condition in one dimention. Finally, both parts were combined and a 3D problem with a 2D convection boundry condition was solved.
 
 = 3-D Figures 
-#figure(image("img/mesh_bc.png"), caption: [3-D Mesh])
+// #figure(image("img/mesh_bc.png"), caption: [3-D Mesh])
 = Convection Figures
-#figure(image("img/boundrys_2d.png"))
+// #figure(image("img/boundrys_2d.png"))
+= Final Figures
+#figure(image("img/boundrys_all.png"), caption: [Final Boundry Conditions]) <final_bc>
+#figure(image("img/mesh_all.png"), caption: [Final Mesh Visualization]) <final_mesh>
+#figure([#image("img/contour_all_size_3.png", width:80%) #image("img/contour_all_size_5.png", width:80%) #image("img/contour_all_size_7.png", width:100%) #image("img/contour_all_size_9.png", width:100%)], caption: [Final Mesh Visualization. Note that the white dots are the location of the nodes at each layer. Layers are symetric so only half of the slices are shown except for the 3x3 mesh.]) <final_results>
+
