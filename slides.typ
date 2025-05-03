@@ -6,7 +6,7 @@
 = 3-D Mesh with 2-D Convection
 By Byron Farmar
 
-MENG 491 Final Project
+MENG 451 Final Project
 
 == 1-D Convection
 
