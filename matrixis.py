@@ -19,16 +19,17 @@ def assemble_stiffness(mesh: Mesh, properties, quad_rules):
 
         for element in range(num_elements):
             A = element_connectivity[element, :num_nodes_in_element]
-            x, y = mesh.x[A], mesh.y[A]
+            x, y, z = mesh.x[A], mesh.y[A], mesh.z[A]
 
             match element_type:
-                case "line":
+                case "quad":
                     conv_stiffness(
                         mesh.ID,
                         A,
                         K,
                         x,
                         y,
+                        z,
                         properties,
                         element_type,
                         quad_rules,
@@ -38,6 +39,7 @@ def assemble_stiffness(mesh: Mesh, properties, quad_rules):
                         location_matrix,
                         x,
                         y,
+                        z,
                         properties,
                         element_type,
                         quad_rules,
@@ -53,6 +55,7 @@ def regular_stiffness(
     LM,
     x,
     y,
+    z,
     properties,
     element_type,
     quad_rules,
@@ -60,7 +63,7 @@ def regular_stiffness(
     element,
     K,
 ) -> None:
-    ke = element_stiffness(x, y, properties, element_type, quad_rules)
+    ke = element_stiffness(x, y, z, properties, element_type, quad_rules)
 
     # Assemble element stiffness into the global stiffness matrix
     for loop1 in range(total_num_dof):
@@ -70,8 +73,10 @@ def regular_stiffness(
             K[i, j] += ke[loop1, loop2]
 
 
-def conv_stiffness(identity_matrix, A, K, x, y, properties, element_type, quad_rules):
-    ke = element_conv_stiffness(x, y, properties, quad_rules, element_type)
+def conv_stiffness(
+    identity_matrix, A, K, x, y, z, properties, element_type, quad_rules
+):
+    ke = element_conv_stiffness(x, y, z, properties, quad_rules, element_type)
     global_eqation = identity_matrix[0, A]
 
     for i, vali in enumerate(global_eqation):
@@ -79,25 +84,42 @@ def conv_stiffness(identity_matrix, A, K, x, y, properties, element_type, quad_r
             K[vali, valj] += ke[i, j]
 
 
-def element_conv_stiffness(x_pnts, y_pnts, properties, quad_rules, element_type):
+def element_conv_stiffness(
+    x_pnts, y_pnts, z_pnts, properties, quad_rules, element_type
+):
     shapefoo = get_shape_func(element_type)
 
     running_sum = np.zeros((len(x_pnts), len(x_pnts)))
     for ξi, wi in quad_rules[element_type].iterator:
-        # Evaluate the shape function
-        Ne, Nξ = shapefoo(ξi)
+        for ξj, wj in quad_rules[element_type].iterator:
+            # Evaluate the shape function
+            Ne, Nξ, Nη = shapefoo((ξi, ξj))
 
-        dx_dξ = np.dot(x_pnts, Nξ)
-        dy_dξ = np.dot(y_pnts, Nξ)
-        detJ = np.sqrt(np.square(dx_dξ) + np.square(dy_dξ))
+            dx_dξ = np.dot(x_pnts, Nξ)
+            dy_dξ = np.dot(y_pnts, Nξ)
+            dz_dξ = np.dot(z_pnts, Nξ)
 
-        running_sum += properties.H * Ne.T @ Ne * detJ * wi
+
+            dx_dη = np.dot(x_pnts, Nη)
+            dy_dη = np.dot(y_pnts, Nη)
+            dz_dη = np.dot(z_pnts, Nη)
+
+            dr_dξ = np.vstack((dx_dξ, dy_dξ, dz_dξ))
+            dr_dη = np.hstack((dx_dη, dy_dη, dz_dη)).reshape(1, -1)
+            detJ = np.linalg.det(dr_dξ @ dr_dη)
+
+            running_sum += properties.H * Ne.T @ Ne * detJ * wi * wj
 
     return running_sum
 
 
 def element_stiffness(
-    x_pnts, y_pnts, properties, element_type: str, quad_rules: dict[str, Quadrule]
+    x_pnts,
+    y_pnts,
+    z_pnts,
+    properties,
+    element_type: str,
+    quad_rules: dict[str, Quadrule],
 ):
     """Compute the element stiffness matrix for a 1D bar."""
     shapefoo = get_shape_func(element_type)
@@ -105,18 +127,19 @@ def element_stiffness(
     running_sum = np.zeros((len(x_pnts), len(x_pnts)))
     for ξi, wi in quad_rules[element_type].iterator:
         for ξj, wj in quad_rules[element_type].iterator:
-            # Evaluate the shape function
-            _, Nξ, Nη = shapefoo(ξi, ξj)
+            for ξk, wk in quad_rules[element_type].iterator:
+                # Evaluate the shape function
+                _, Nξ, Nη, Nζ = shapefoo((ξi, ξj, ξk))
 
-            shape_derivatives = np.array([Nξ, Nη]).T
-            pnt_mat = np.array([x_pnts, y_pnts])
+                shape_derivatives = np.array([Nξ, Nη, Nζ]).T
+                pnt_mat = np.array([x_pnts, y_pnts, z_pnts])
 
-            jacob = pnt_mat @ shape_derivatives
-            detJ = np.linalg.det(jacob)
+                jacob = pnt_mat @ shape_derivatives
+                detJ = np.linalg.det(jacob)
 
-            B = np.linalg.solve(jacob, shape_derivatives.T)
+                B = np.linalg.solve(jacob, shape_derivatives.T)
 
-            running_sum += properties.K * B.T @ B * detJ * wi * wj
+                running_sum += properties.K * B.T @ B * detJ * wi * wj * wk
 
     return running_sum
 
