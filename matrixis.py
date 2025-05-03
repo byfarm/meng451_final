@@ -1,6 +1,6 @@
 import numpy as np
 from quadrature import Quadrule
-from shapefunctions import shapefunc
+from shapefunctions import get_shape_func
 from preprocess import Mesh, std_element_defs  # Assuming this exists in Preprocess
 
 
@@ -80,7 +80,7 @@ def conv_stiffness(identity_matrix, A, K, x, y, properties, element_type, quad_r
 
 
 def element_conv_stiffness(x_pnts, y_pnts, properties, quad_rules, element_type):
-    shapefoo = shapefunc(element_type)
+    shapefoo = get_shape_func(element_type)
 
     running_sum = np.zeros((len(x_pnts), len(x_pnts)))
     for ξi, wi in quad_rules[element_type].iterator:
@@ -100,7 +100,7 @@ def element_stiffness(
     x_pnts, y_pnts, properties, element_type: str, quad_rules: dict[str, Quadrule]
 ):
     """Compute the element stiffness matrix for a 1D bar."""
-    shapefoo = shapefunc(element_type)
+    shapefoo = get_shape_func(element_type)
 
     running_sum = np.zeros((len(x_pnts), len(x_pnts)))
     for ξi, wi in quad_rules[element_type].iterator:
@@ -131,7 +131,7 @@ def assemble_rhs(mesh, external_forcing, quad_rules):
     # Loop over each element in the mesh
     for element_type, element_connectivity in mesh.element_connectivity.items():
         num_elements = element_connectivity.shape[0]
-        shape_funcs = shapefunc(element_type)
+        shape_funcs = get_shape_func(element_type)
         element_quad_rule = quad_rules[element_type]
         num_nodes_in_element = std_element_defs[element_type].num_nodes_in_element
         total_num_dof = ned * num_nodes_in_element

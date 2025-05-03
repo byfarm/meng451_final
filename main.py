@@ -24,7 +24,7 @@ def build():
 
     # for 3 node quadtratic
 
-    one_dimention_size = 10
+    one_dimention_size = 5
     one_dim_el = one_dimention_size - 1
     layer_point_size = one_dimention_size**2
     amt_points = one_dimention_size**3
@@ -50,17 +50,24 @@ def build():
                 )  # fmt: skip
 
     # make node numbers 1-n have the conv boundry
-    conv_boundry = np.array(
-        [
-            [i for i in range(one_dimention_size - 1)],
-            [i for i in range(1, one_dimention_size)],
-        ],
-        dtype=int,
-    )
+    conv_boundry = []
+    for i in range(one_dim_el):
+        for j in range(one_dim_el):
+            conv_boundry.append(
+                np.array(
+                    [
+                        i * one_dimention_size + j,
+                        i * one_dimention_size + j + 1,
+                        i * one_dimention_size + j + one_dimention_size + 1,
+                        i * one_dimention_size + j + one_dimention_size,
+                    ],
+                    dtype=int,
+                )
+            )
 
-    element_connectivity = {
+    element_connectivity: dict[str, np.ndarray] = {
         "hexahedron": np.array(element_connectivity),
-        "quad": conv_boundry.reshape(-1, 4),
+        "quad": np.array(conv_boundry),
     }
 
     x = np.linspace(0, prop.w, one_dimention_size)
@@ -176,11 +183,6 @@ class BoundyConditions:
     one_dimention_size,
 ) = build()
 
-plt = plot_mesh(x, y, z, element_connectivity["hexahedron"])
-plt.savefig("img/mesh_all.png")
-
-plt = plot_bc(x, y, z, bc_g_list)
-plt.savefig("img/boundrys_all.png")
 
 mesh = build_mesh(
     x.reshape((-1,)),
@@ -191,6 +193,12 @@ mesh = build_mesh(
     bc_fix_list,
     bc_g_list,
 )
+
+plt = plot_mesh(x.reshape(-1), y.reshape(-1), z.reshape(-1), element_connectivity)
+plt.savefig("img/mesh_all.png")
+
+plt = plot_bc(x, y, z, bc_g_list)
+plt.savefig("img/boundrys_all.png")
 
 
 def f(x: float, y: float) -> float:
@@ -217,8 +225,12 @@ solution[r1] = np.linalg.solve(
 
 
 def unpack_solution(solution):
-    bc_fix_twod = bc_fix_list.reshape(one_dimention_size, one_dimention_size, one_dimention_size)
-    bc_g_twod = bc_g_list.reshape(one_dimention_size, one_dimention_size, one_dimention_size)
+    bc_fix_twod = bc_fix_list.reshape(
+        one_dimention_size, one_dimention_size, one_dimention_size
+    )
+    bc_g_twod = bc_g_list.reshape(
+        one_dimention_size, one_dimention_size, one_dimention_size
+    )
     twod_sol = bc_g_twod.copy()
     free_spots_idx = np.where(bc_fix_twod == 0)
     twod_sol[free_spots_idx] = solution[r1]
